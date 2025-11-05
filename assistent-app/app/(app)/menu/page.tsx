@@ -1,43 +1,34 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import MenuItem from "@/components/MenuItem";
 
 export default function MenuPage() {
   const [menu, setMenu] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase
-        .from("menu")
-        .select("*")
-        .order("number", { ascending: true });
+      const { data } = await supabase.from("menu").select("*");
       setMenu(data || []);
+      setLoading(false);
     };
-    load();
 
-    const ch = supabase
-      .channel("menu-rt")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "menu" },
-        () => load()
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(ch);
+    load(); // ✅ Kald funktionen – vi returnerer ikke noget!
   }, []);
 
+  if (loading) return <p className="p-6">Indlæser…</p>;
+
   return (
-    <>
-      <h1 className="text-2xl font-bold mb-4">Menu</h1>
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {menu.length ? (
-          menu.map((m) => <MenuItem key={m.id} item={m} />)
-        ) : (
-          <p className="text-gray-500">Ingen menupunkter fundet.</p>
-        )}
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-4">Menu</h1>
+
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {menu?.map((item) => (
+          <MenuItem key={item.uid} item={item} />
+        ))}
       </div>
-    </>
+    </div>
   );
 }
