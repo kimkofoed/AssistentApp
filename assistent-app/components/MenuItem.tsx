@@ -1,63 +1,57 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase } from "@/lib/supabase";
 
-export default function MenuItem({ item }) {
+interface MenuItemProps {
+  item: {
+    uid: string;
+    number: number;
+    name: string;
+    price: number;
+    status: string; // "ok" | "sold_out"
+  };
+}
+
+export default function MenuItem({ item }: MenuItemProps) {
   const [status, setStatus] = useState(item.status);
 
   const toggleSoldOut = async () => {
     const newStatus = status === "ok" ? "sold_out" : "ok";
-    setStatus(newStatus);
 
-    const { error } = await supabase
+    await supabase
       .from("menu")
       .update({ status: newStatus })
-      .eq("id", item.id);
+      .eq("uid", item.uid);
 
-    if (error) {
-      console.error(error);
-      // rollback UI hvis fejl
-      setStatus(status);
-      alert("Kunne ikke opdatere status.");
-    }
+    setStatus(newStatus);
   };
-
-  const isSoldOut = status === "sold_out";
 
   return (
     <div
-      className={`p-4 border rounded-xl shadow-sm transition ${
-        isSoldOut ? "bg-red-50 border-red-300" : "bg-white"
+      className={`p-4 border rounded-xl shadow-sm bg-white ${
+        status === "sold_out" ? "opacity-50" : ""
       }`}
     >
-      {/* Pizza nummer */}
-      <p className="text-sm font-medium text-gray-500 mb-1">
-        #{item.number}
-      </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-bold">
+            #{item.number} – {item.name}
+          </p>
+          <p className="text-gray-600">{item.price} kr</p>
+        </div>
 
-      {/* Navn + pris */}
-      <h3
-        className={`text-lg font-semibold ${
-          isSoldOut ? "line-through text-gray-400" : "text-gray-900"
-        }`}
-      >
-        {item.name}
-      </h3>
-
-      <p className="text-gray-600 text-sm mb-3">{item.price} kr</p>
-
-      {/* Udsolgt toggle knap */}
-      <button
-        onClick={toggleSoldOut}
-        className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
-          isSoldOut
-            ? "bg-green-600 text-white hover:bg-green-700"
-            : "bg-red-600 text-white hover:bg-red-700"
-        }`}
-      >
-        {isSoldOut ? "Gør tilgængelig" : "Markér udsolgt"}
-      </button>
+        <button
+          onClick={toggleSoldOut}
+          className={`px-3 py-1 rounded-lg text-sm font-medium ${
+            status === "sold_out"
+              ? "bg-green-100 text-green-700"
+              : "bg-red-100 text-red-700"
+          }`}
+        >
+          {status === "sold_out" ? "Gør tilgængelig" : "Udsolgt"}
+        </button>
+      </div>
     </div>
   );
 }
