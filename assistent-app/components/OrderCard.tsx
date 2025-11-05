@@ -2,18 +2,32 @@
 
 import { motion } from "framer-motion";
 
+interface OrderItem {
+  name?: string;
+  number?: number;
+  qty: number;
+  price: number;
+}
+
 interface OrderCardProps {
   order: {
-    uid: string;
+    id: string;
     customer_name?: string | null;
     phone?: string | null;
-    items?: any[] | null;
-    total_price?: number | null;
+    items?: OrderItem[] | null;
     created_at: string;
   };
 }
 
 export default function OrderCard({ order }: OrderCardProps) {
+  // ✅ Beregn totalpris ud fra items
+  const total =
+    order.items?.reduce((sum, item) => {
+      const qty = item.qty ?? 1;
+      const price = item.price ?? 0;
+      return sum + qty * price;
+    }, 0) ?? 0;
+
   return (
     <motion.div
       className="p-4 bg-white shadow-sm rounded-2xl border border-gray-200 hover:shadow-md transition-all"
@@ -35,7 +49,7 @@ export default function OrderCard({ order }: OrderCardProps) {
         </div>
 
         <div className="text-right">
-          <p className="text-xl font-bold">{order.total_price || 0} kr</p>
+          <p className="text-xl font-bold">{total} kr</p>
         </div>
       </div>
     </motion.div>
