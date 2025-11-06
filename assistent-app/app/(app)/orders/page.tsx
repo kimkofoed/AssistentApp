@@ -8,42 +8,68 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false });
+  const loadOrders = async () => {
+    const { data, error } = await supabase
+    .from("orders")
+    .select(`
+        id,
+        customer_name,
+        created_at,
+        status,
+        order_items!order_items_order_id_fkey (
+        qty,
+        price,
+        menu!order_items_menu_id_fkey (
+            name
+        )
+        )
+    `)
+    .order("created_at", { ascending: false });
 
-      setOrders(data || []);
+    if (error) {
+      console.error(
+        "❌ Supabase fejl:",
+        error.message,
+        error.details,
+        error.hint
+      );
       setLoading(false);
-    };
+      return;
+    }
 
-    load(); // ✅ Ikke returnere, kun kalde
+    console.log("✅ Supabase data:", data);
+    setOrders(data || []);
+    setLoading(false);
+  };
 
-    // ✅ Realtime subscription (må gerne returnere cleanup)
-    const channel = supabase
-      .channel("orders-realtime")
+  useEffect(() => {
+    loadOrders();
+
+    const ordersChannel = supabase
+      .channel("orders-changes")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
-        async () => {
-          const { data } = await supabase
-            .from("orders")
-            .select("*")
-            .order("created_at", { ascending: false });
+        () => loadOrders()
+      )
+      .subscribe();
 
-          setOrders(data || []);
-        }
+    const itemsChannel = supabase
+      .channel("order-items-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "order_items" },
+        () => loadOrders()
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel); // ✅ Rigtig cleanup
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(itemsChannel);
     };
   }, []);
 
-  if (loading) return <p className="p-6">Indlæser…</p>;
+  if (loading) return <p className="p-6 text-gray-600">Indlæser ordrer…</p>;
 
   return (
     <div className="p-6">
@@ -51,7 +77,7 @@ export default function OrdersPage() {
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {orders.length > 0 ? (
-          orders.map((order) => <OrderCard key={order.uid} order={order} />)
+          orders.map((order) => <OrderCard key={order.id} order={order} />)
         ) : (
           <p className="text-gray-500">Ingen ordrer endnu.</p>
         )}
