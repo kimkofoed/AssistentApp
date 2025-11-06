@@ -10,7 +10,10 @@ export default function MenuPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from("menu").select("*");
+      const { data } = await supabase
+        .from("menu")
+        .select("*")
+        .order("number", { ascending: true });
       setMenu(data || []);
       setLoading(false);
     };
