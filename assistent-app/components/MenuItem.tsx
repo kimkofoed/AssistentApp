@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 
 interface MenuItemProps {
   item: {
-    id: string;
+    uid: string;
     number: number;
     name: string;
     price: number;
@@ -22,7 +22,7 @@ export default function MenuItem({ item }: MenuItemProps) {
     await supabase
       .from("menu")
       .update({ status: newStatus })
-      .eq("id", item.id);
+      .eq("id", item.uid);
 
     setStatus(newStatus);
   };

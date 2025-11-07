@@ -8,31 +8,33 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ✅ Hent ordrer inkl. produkter og modifiers
   const loadOrders = async () => {
     const { data, error } = await supabase
-    .from("orders")
-    .select(`
+      .from("orders")
+      .select(`
         id,
         customer_name,
         created_at,
         status,
-        order_items!order_items_order_id_fkey (
-        qty,
-        price,
-        menu!order_items_menu_id_fkey (
-            name
+        order_items:order_items!order_items_order_id_fkey (
+          id,
+          qty,
+          price,
+          comment,
+          menu:menu!order_items_menu_id_fkey ( name, number ),
+          modifiers:order_item_modifiers!order_item_modifiers_order_item_id_fkey (
+            id,
+            name,
+            price,
+            type
+          )
         )
-        )
-    `)
-    .order("created_at", { ascending: false });
+      `)
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error(
-        "❌ Supabase fejl:",
-        error.message,
-        error.details,
-        error.hint
-      );
+      console.error("❌ Supabase fejl:", error.message, error.details, error.hint);
       setLoading(false);
       return;
     }
@@ -45,27 +47,26 @@ export default function OrdersPage() {
   useEffect(() => {
     loadOrders();
 
+    // ✅ Realtime opdatering
     const ordersChannel = supabase
       .channel("orders-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        () => loadOrders()
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, loadOrders)
       .subscribe();
 
     const itemsChannel = supabase
       .channel("order-items-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "order_items" },
-        () => loadOrders()
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, loadOrders)
+      .subscribe();
+
+    const modifiersChannel = supabase
+      .channel("order-item-modifiers-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_item_modifiers" }, loadOrders)
       .subscribe();
 
     return () => {
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(itemsChannel);
+      supabase.removeChannel(modifiersChannel);
     };
   }, []);
 
@@ -77,7 +78,9 @@ export default function OrdersPage() {
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {orders.length > 0 ? (
-          orders.map((order) => <OrderCard key={order.id} order={order} />)
+          orders.map((order) => (
+            <OrderCard key={order.id} order={order} />
+          ))
         ) : (
           <p className="text-gray-500">Ingen ordrer endnu.</p>
         )}

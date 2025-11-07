@@ -1,14 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { CheckCircle, Clock, Loader, Package } from "lucide-react";
+
+interface OrderModifier {
+  name: string;
+  price?: number;
+  type?: "addon" | "remove";
+}
 
 interface OrderItem {
   qty: number;
   price: number;
-  menu?: { name: string };
+  comment?: string | null;
+  menu?: {
+    name: string;
+    number?: number;
+  };
+  modifiers?: OrderModifier[] | null; // 👈 nyt felt til tilbehør
 }
 
 interface OrderCardProps {
@@ -16,7 +26,6 @@ interface OrderCardProps {
     id: string;
     customer_name?: string | null;
     created_at: string;
-    comment?: string | null;
     status?: string;
     order_items?: OrderItem[] | null;
   };
@@ -26,12 +35,17 @@ export default function OrderCard({ order }: OrderCardProps) {
   const [status, setStatus] = useState(order.status || "afventer");
   const [loading, setLoading] = useState(false);
 
-  // ✅ Beregn totalpris
+  // ✅ Beregn totalpris inkl. modifiers
   const total =
-    order.order_items?.reduce(
-      (sum, item) => sum + (item.price ?? 0) * (item.qty ?? 1),
-      0
-    ) ?? 0;
+    order.order_items?.reduce((sum, item) => {
+      const base = (item.price ?? 0) * (item.qty ?? 1);
+      const addons =
+        item.modifiers?.reduce(
+          (aSum, mod) => aSum + (mod.price ?? 0),
+          0
+        ) ?? 0;
+      return sum + base + addons;
+    }, 0) ?? 0;
 
   // ✅ Status flow
   const nextStatus = (s: string) =>
@@ -47,7 +61,10 @@ export default function OrderCard({ order }: OrderCardProps) {
   const updateStatus = async () => {
     const newStatus = nextStatus(status);
     setLoading(true);
-    await supabase.from("orders").update({ status: newStatus }).eq("id", order.id);
+    await supabase
+      .from("orders")
+      .update({ status: newStatus })
+      .eq("id", order.id);
     setStatus(newStatus);
     setLoading(false);
   };
@@ -70,8 +87,8 @@ export default function OrderCard({ order }: OrderCardProps) {
   const Icon = statusIcons[status] || Clock;
 
   return (
-    <motion.div
-      className={`p-5 bg-white rounded-2xl border-2 shadow-sm transition-all
+    <div
+      className={`p-5 bg-white rounded-2xl border-2 shadow-sm
         ${
           status === "klar"
             ? "border-green-500"
@@ -81,7 +98,6 @@ export default function OrderCard({ order }: OrderCardProps) {
             ? "border-gray-300"
             : "border-gray-200"
         }`}
-      whileHover={{ scale: 1.02 }}
     >
       {/* Kundeinfo */}
       <div className="flex justify-between items-start">
@@ -107,13 +123,38 @@ export default function OrderCard({ order }: OrderCardProps) {
       {/* Produkter */}
       <div className="mt-4 bg-gray-50 rounded-xl p-3">
         {order.order_items && order.order_items.length > 0 ? (
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {order.order_items.map((item, i) => (
-              <li key={i} className="flex justify-between text-lg font-medium">
+              <li key={i} className="text-lg font-medium">
+                <div className="flex justify-between">
                 <span>
-                  {item.qty}× {item.menu?.name || "Ukendt produkt"}
+                  #{item.menu?.number ?? "?"} – {item.menu?.name || "Ukendt produkt"}
                 </span>
-                <span>{item.price * item.qty} kr</span>
+                  <span>{item.price} kr</span>
+                </div>
+
+                {/* Kommentar (gratis ændringer) */}
+                {item.comment && (
+                  <p className="text-sm text-gray-600 italic ml-4">
+                    💬 {item.comment}
+                  </p>
+                )}
+
+                {/* Tilbehør / modifiers */}
+                {item.modifiers && item.modifiers.length > 0 && (
+                  <ul className="ml-6 mt-1 space-y-1 text-sm text-gray-700">
+                    {item.modifiers.map((mod, j) => (
+                      <li key={j} className="flex justify-between">
+                        <span>
+                          {mod.type === "remove" ? "➖" : "➕"} {mod.name}
+                        </span>
+                        {mod.price && mod.price > 0 && (
+                          <span>{mod.price} kr</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>
@@ -121,13 +162,6 @@ export default function OrderCard({ order }: OrderCardProps) {
           <p className="text-gray-500 italic">Ingen produkter i ordren</p>
         )}
       </div>
-
-      {/* Kommentar */}
-      {order.comment && (
-        <p className="mt-3 text-gray-700 italic bg-yellow-50 p-2 rounded-xl">
-          💬 {order.comment}
-        </p>
-      )}
 
       {/* Status-knap */}
       {status !== "afsluttet" && (
@@ -152,6 +186,6 @@ export default function OrderCard({ order }: OrderCardProps) {
             : "Afslut ordre"}
         </button>
       )}
-    </motion.div>
+    </div>
   );
 }
